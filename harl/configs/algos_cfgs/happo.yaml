@@ -13,15 +13,15 @@ device:
   torch_threads: 4
 train:
   # number of parallel environments for training data collection
-  n_rollout_threads: 20
+  n_rollout_threads: 5
   # number of total training steps
-  num_env_steps: 10000000
+  num_env_steps: 142500
   # number of steps per environment per training data collection
-  episode_length: 200
+  episode_length: 285
   # logging interval
-  log_interval: 5
+  log_interval: 1
   # evaluation interval
-  eval_interval: 25
+  eval_interval: 10
   # whether to use ValueNorm
   use_valuenorm: True
   # whether to use linear learning rate decay
