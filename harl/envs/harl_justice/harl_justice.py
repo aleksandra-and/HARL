@@ -17,7 +17,7 @@ import copy
 class HarlJusticeEnvironment:
     def __init__(self, args):
         self.args = copy.deepcopy(args)
-        env_args = EnvArgs(reward=self.args['reward'], num_agents=self.args['num_agents'])
+        env_args = EnvArgs(**self.args)
         self.env = JusticeEnvironment(env_args)
         self.n_agents = len(self.env.possible_agents)
         self.agents = self.env.possible_agents
@@ -62,7 +62,7 @@ class HarlJusticeEnvironment:
        
     def get_avail_agent_actions(self, agent_id):
         """Returns the available actions for agent_id"""
-        return [1] * self.action_space[agent_id].n
+        return self.env.action_mask[self.env.possible_agents[agent_id]]
 
     def seed(self, seed):
         """Set the random seed"""

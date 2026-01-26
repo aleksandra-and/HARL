@@ -6,7 +6,7 @@ seed:
   seed: 1
 device:
   # whether to use CUDA
-  cuda: True
+  cuda: False
   # whether to set CUDA deterministic
   cuda_deterministic: True
   # arg to torch.set_num_threads
@@ -15,13 +15,13 @@ train:
   # number of parallel environments for training data collection
   n_rollout_threads: 5
   # number of total training steps
-  num_env_steps: 142500
+  num_env_steps: 1450000
   # number of steps per environment per training data collection
   episode_length: 285
   # logging interval
-  log_interval: 1
+  log_interval: 25
   # evaluation interval
-  eval_interval: 10
+  eval_interval: 50
   # whether to use ValueNorm
   use_valuenorm: True
   # whether to use linear learning rate decay
@@ -45,7 +45,7 @@ render:
 model:
   # network parameters
   # hidden sizes for mlp module in the network
-  hidden_sizes: [128, 128]
+  hidden_sizes: [64, 64]
   # activation function, choose from sigmoid, tanh, relu, leaky_relu, selu
   activation_func: relu
   # whether to use feature normalization
