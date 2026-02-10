@@ -41,7 +41,7 @@ class HarlJusticeEnvironment:
         rewards = [[rewards[agent]] for agent in self.agents]
         return (
             self.unwrap(obs),
-            self.repeat(state),
+            state,
             rewards,
             self.unwrap(dones),
             self.unwrap(infos),
@@ -51,7 +51,7 @@ class HarlJusticeEnvironment:
     def reset(self):
         obs, infos = self.env.reset()
         state = self.env.get_state()
-        return self.unwrap(obs), self.repeat(state), self.get_avail_actions()
+        return self.unwrap(obs), state, self.get_avail_actions()
 
     def get_avail_actions(self):
         avail_actions = []

@@ -37,10 +37,14 @@ class HarlJusticeLogger(BaseLogger):
         )
 
         critic_train_info["average_step_rewards"] = critic_buffer.get_mean_rewards()
-        for agent_id in range(self.num_agents):
-            actor_train_infos[agent_id][
-                "average_step_rewards"
-            ] = critic_buffer.rewards[:, :, agent_id].mean()
+        
+        if critic_buffer.rewards.ndim == 4:
+            # if critic buffer has shape (n_rollout_threads, episode_length, num_agents, 1)
+            for agent_id in range(self.num_agents):
+                actor_train_infos[agent_id][
+                    "average_step_rewards"
+                ] = critic_buffer.rewards[:, :, agent_id].mean()
+                
         self.log_train(actor_train_infos, critic_train_info)
 
         print(
@@ -52,10 +56,13 @@ class HarlJusticeLogger(BaseLogger):
             "average_step_rewards": critic_buffer.get_mean_rewards(),
             "total_num_steps": self.total_num_steps,
         })
-        for agent_id in range(self.num_agents):
-            wandb.log({
-                f"reward_agent{agent_id}": critic_buffer.rewards[:, :, agent_id].sum(axis=0).mean()
-            })
+        
+        if critic_buffer.rewards.ndim == 4:
+            # if critic buffer has shape (n_rollout_threads, episode_length, num_agents, 1)
+            for agent_id in range(self.num_agents):
+                wandb.log({
+                    f"reward_agent{agent_id}": critic_buffer.rewards[:, :, agent_id].sum(axis=0).mean()
+                })
 
         if len(self.done_episodes_rewards) > 0:
             aver_episode_rewards = np.mean(self.done_episodes_rewards)
