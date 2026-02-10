@@ -20,6 +20,7 @@ from harl.algorithms.actors import ALGO_REGISTRY
 from harl.algorithms.critics import CRITIC_REGISTRY
 from harl.common.buffers.off_policy_buffer_ep import OffPolicyBufferEP
 from harl.common.buffers.off_policy_buffer_fp import OffPolicyBufferFP
+import wandb
 
 
 class OffPolicyBaseRunner:
@@ -301,6 +302,7 @@ class OffPolicyBaseRunner:
                             ",".join(map(str, [cur_step, aver_episode_rewards])) + "\n"
                         )
                         self.log_file.flush()
+                        wandb.log("train/average_episode_rewards", aver_episode_rewards)
                         self.done_episodes_rewards = []
                 self.save()
 
@@ -528,7 +530,7 @@ class OffPolicyBaseRunner:
             eval_score_cnt = 0
         episode_lens = []
         one_episode_len = np.zeros(
-            self.algo_args["eval"]["n_eval_rollout_threads"], dtype=np.int
+            self.algo_args["eval"]["n_eval_rollout_threads"], dtype=int
         )
 
         eval_obs, eval_share_obs, eval_available_actions = self.eval_envs.reset()
@@ -633,6 +635,8 @@ class OffPolicyBaseRunner:
                 self.writter.add_scalar(
                     "eval_average_episode_rewards", eval_avg_rew, step
                 )
+                wandb.log("eval/average_episode_rewards", eval_avg_rew)
+                wandb.log("eval/average_episode_length", eval_avg_len)
                 self.writter.add_scalar(
                     "eval_average_episode_length", eval_avg_len, step
                 )

@@ -15,13 +15,13 @@ train:
   # number of parallel environments for training data collection
   n_rollout_threads: 5
   # number of total training steps
-  num_env_steps: 14250
+  num_env_steps: 128250
   # number of steps per environment per training data collection
   episode_length: 285
   # logging interval
-  log_interval: 25
+  log_interval: 10
   # evaluation interval
-  eval_interval: 50
+  eval_interval: 25
   # whether to use ValueNorm
   use_valuenorm: True
   # whether to use linear learning rate decay

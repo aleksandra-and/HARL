@@ -6,26 +6,26 @@ seed:
   seed: 1
 device:
   # whether to use CUDA
-  cuda: True
+  cuda: False
   # whether to set CUDA deterministic
   cuda_deterministic: True
   # arg to torch.set_num_threads
   torch_threads: 4
 train:
   # number of parallel environments for training data collection
-  n_rollout_threads: 20
+  n_rollout_threads: 5
   # number of total steps
-  num_env_steps: 20000000
+  num_env_steps: 285000
   # number of warmup steps
   warmup_steps: 10000
   # number of steps per train
-  train_interval: 50
+  train_interval: 285
   # ratio of training iterations to train_interval
   update_per_train: 1
   # logging interval (currently unused)
   log_interval: ~
   # evaluation interval
-  eval_interval: 10000
+  eval_interval: 28500
   # whether to use ValueNorm
   use_valuenorm: True
   # whether to use linear learning rate decay
