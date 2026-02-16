@@ -97,6 +97,10 @@ def make_train_env(env_name, seed, n_threads, env_args):
                 from harl.envs.harl_justice.harl_justice import HarlJusticeEnvironment
 
                 env = HarlJusticeEnvironment(env_args)
+            elif env_name == "harl_justice_momarl":
+                from harl.envs.harl_justice.harl_justice_momarl import HarlJusticeMOMARLEnvironment
+
+                env = HarlJusticeMOMARLEnvironment(env_args)
             else:
                 print("Can not support the " + env_name + "environment.")
                 raise NotImplementedError
@@ -154,6 +158,10 @@ def make_eval_env(env_name, seed, n_threads, env_args):
                 from harl.envs.harl_justice.harl_justice import HarlJusticeEnvironment
 
                 env = HarlJusticeEnvironment(env_args)
+            elif env_name == "harl_justice_momarl":
+                from harl.envs.harl_justice.harl_justice_momarl import HarlJusticeMOMARLEnvironment
+
+                env = HarlJusticeMOMARLEnvironment(env_args)
             else:
                 print("Can not support the " + env_name + "environment.")
                 raise NotImplementedError
@@ -232,6 +240,11 @@ def make_render_env(env_name, seed, env_args):
 
         env = HarlJusticeEnvironment(env_args)
         env.seed(seed * 60000)
+    elif env_name == "harl_justice_momarl":
+        from harl.envs.harl_justice.harl_justice_momarl import HarlJusticeMOMARLEnvironment
+
+        env = HarlJusticeMOMARLEnvironment(env_args)
+        env.seed(seed * 60000)
     else:
         print("Can not support the " + env_name + "environment.")
         raise NotImplementedError
@@ -271,4 +284,6 @@ def get_num_agents(env, env_args, envs):
     elif env == "lag":
         return envs.n_agents
     elif env == "harl_justice":
+        return envs.n_agents
+    elif env == "harl_justice_momarl":
         return envs.n_agents

@@ -22,4 +22,5 @@ LOGGER_REGISTRY = {
     "smacv2": SMACv2Logger,
     "lag": LAGLogger,
     "harl_justice": HarlJusticeLogger,
+    "harl_justice_momarl": HarlJusticeLogger,  # Reuse the same logger for MOMARL
 }

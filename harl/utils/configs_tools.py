@@ -68,6 +68,8 @@ def get_task_name(env, env_args):
         task = f"{env_args['scenario']}-{env_args['task']}"
     elif env == "harl_justice":
         task = env_args["env_name"]
+    elif env == "harl_justice_momarl":
+        task = env_args["env_name"]
     return task
 
 

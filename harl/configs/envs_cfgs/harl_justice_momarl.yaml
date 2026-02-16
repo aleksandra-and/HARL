@@ -1,0 +1,18 @@
+env_name: 'harl_justice_momarl'
+reward: 'multi_objective'  # Placeholder, actual objectives defined in rewards list
+num_agents: 5
+ensables: [
+            319, 672, 67, 591, 652, 700, 628, 233, 290, 239, 847, 919, 278, 609, 126
+          ]
+action_change: 1
+state_type: 'EP'
+num_actions: 11
+
+# MOMARL-specific configuration
+rewards:
+  - 'inverse_global_temperature'
+  - 'global_economic_output'
+weights:
+  - 0.5
+  - 0.5
+normalize_rewards: true
