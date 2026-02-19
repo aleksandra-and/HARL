@@ -7,4 +7,4 @@ ensables: [
 action_change: 1
 state_type: 'EP'
 num_actions: 11
-fixed_saving_rate: False
+fixed_savings_rate: False
