@@ -50,6 +50,12 @@ class OnPolicyActorBuffer:
                 (self.episode_length + 1, self.n_rollout_threads, act_space.n),
                 dtype=np.float32,
             )
+        elif act_space.__class__.__name__ == "MultiDiscrete":
+            # For MultiDiscrete, store flattened available actions (sum of all nvec)
+            self.available_actions = np.ones(
+                (self.episode_length + 1, self.n_rollout_threads, sum(act_space.nvec)),
+                dtype=np.float32,
+            )
         else:
             self.available_actions = None
 

@@ -33,9 +33,9 @@ class ACTLayer(nn.Module):
             )
         elif action_space.__class__.__name__ == "MultiDiscrete":
             self.multidiscrete_action = True
-            action_dims = action_space.nvec
+            self.action_dims = action_space.nvec
             action_outs = []
-            for action_dim in action_dims:
+            for action_dim in self.action_dims:
                 action_outs.append(
                     Categorical(inputs_dim, action_dim, initialization_method, gain)
                 )
@@ -56,8 +56,13 @@ class ACTLayer(nn.Module):
         if self.multidiscrete_action:
             actions = []
             action_log_probs = []
-            for action_out in self.action_outs:
-                action_distribution = action_out(x, available_actions)
+            # Split available_actions for each action dimension
+            if available_actions is not None:
+                split_available_actions = torch.split(available_actions, list(self.action_dims), dim=-1)
+            else:
+                split_available_actions = [None] * len(self.action_outs)
+            for action_out, avail in zip(self.action_outs, split_available_actions):
+                action_distribution = action_out(x, avail)
                 action = (
                     action_distribution.mode()
                     if deterministic
@@ -92,8 +97,13 @@ class ACTLayer(nn.Module):
         """
         if self.multidiscrete_action:
             action_logits = []
-            for action_out in self.action_outs:
-                action_distribution = action_out(x, available_actions)
+            # Split available_actions for each action dimension
+            if available_actions is not None:
+                split_available_actions = torch.split(available_actions, list(self.action_dims), dim=-1)
+            else:
+                split_available_actions = [None] * len(self.action_outs)
+            for action_out, avail in zip(self.action_outs, split_available_actions):
+                action_distribution = action_out(x, avail)
                 action_logits.append(action_distribution.logits)
         else:
             action_distribution = self.action_out(x, available_actions)
@@ -118,8 +128,13 @@ class ACTLayer(nn.Module):
             action = torch.transpose(action, 0, 1)
             action_log_probs = []
             dist_entropy = []
-            for action_out, act in zip(self.action_outs, action):
-                action_distribution = action_out(x)
+            # Split available_actions for each action dimension
+            if available_actions is not None:
+                split_available_actions = torch.split(available_actions, list(self.action_dims), dim=-1)
+            else:
+                split_available_actions = [None] * len(self.action_outs)
+            for action_out, act, avail in zip(self.action_outs, action, split_available_actions):
+                action_distribution = action_out(x, avail)
                 action_log_probs.append(
                     action_distribution.log_probs(act.unsqueeze(-1))
                 )

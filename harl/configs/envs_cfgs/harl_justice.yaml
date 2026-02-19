@@ -1,5 +1,5 @@
 env_name: 'harl_justice'
-reward: 'global_temperature'
+reward: 'global_economic_output'
 num_agents: 5
 ensables: [
             319, 672, 67, 591, 652, 700, 628, 233, 290, 239, 847, 919, 278, 609, 126
@@ -7,3 +7,4 @@ ensables: [
 action_change: 1
 state_type: 'EP'
 num_actions: 11
+fixed_saving_rate: False
