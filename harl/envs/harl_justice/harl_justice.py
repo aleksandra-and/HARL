@@ -35,8 +35,9 @@ class HarlJusticeEnvironment:
         self._seed = 0
     
     def step(self, actions):
-        # actions shape: (n_agents, 2) for MultiDiscrete([num_actions, num_actions])
-        # Each agent has [emission_control_action, savings_rate_action]
+        # actions shape depends on fixed_savings_rate:
+        # - True: (n_agents,) single emission control action per agent
+        # - False: (n_agents, 2) [emission_control, savings_rate] per agent
         action_dict = {agent: actions[i] for i, agent in enumerate(self.agents)}
         obs, rewards, term, trunc, infos = self.env.step(action_dict)
         dones = {agent: term[agent] or trunc[agent] for agent in self.agents}
