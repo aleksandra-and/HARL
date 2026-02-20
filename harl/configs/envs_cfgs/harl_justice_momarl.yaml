@@ -7,6 +7,7 @@ ensables: [
 action_change: 1
 state_type: 'EP'
 num_actions: 11
+fixed_savings_rate: False
 
 # MOMARL-specific configuration
 rewards:
@@ -15,4 +16,4 @@ rewards:
 weights:
   - 0.5
   - 0.5
-normalize_rewards: true
+normalize_rewards: True

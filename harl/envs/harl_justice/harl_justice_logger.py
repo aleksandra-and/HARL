@@ -11,7 +11,52 @@ class HarlJusticeLogger(BaseLogger):
         super(HarlJusticeLogger, self).__init__(
             args, algo_args, env_args, num_agents, writter, run_dir
         )
+        # shape: (n_rollout_threads, num_agents, num_objectives)
+        self.num_objectives = 2 if env_args.get('reward', 'other') == 'multi_objective' else 1
+        self.env_agent_rewards = np.zeros((
+            self.algo_args["train"]["n_rollout_threads"], self.num_agents, self.num_objectives
+            ))
+        self.done_env_agent_rewards = []  
     
+    def per_step(self, data):
+        """Process data per step, including vector rewards from infos."""
+        (
+            obs,
+            share_obs,
+            rewards,
+            dones,
+            infos,
+            available_actions,
+            values,
+            actions,
+            action_log_probs,
+            rnn_states,
+            rnn_states_critic,
+        ) = data
+        
+        # Extract vector rewards from infos for logging
+        # infos shape: (n_threads,) where each element is a list of agent info dicts
+        for t in range(self.algo_args["train"]["n_rollout_threads"]):
+            if infos[t] is not None:
+                for agent_idx, info in enumerate(infos[t]):
+                    if isinstance(info, dict) and 'rewards' in info:
+                        vec_reward = info['rewards']
+                        if isinstance(vec_reward, np.ndarray) and len(vec_reward) == self.num_objectives:
+                            self.env_agent_rewards[t, agent_idx, :] += vec_reward
+                    
+        dones_env = np.all(dones, axis=1)
+        reward_env = np.mean(rewards, axis=1).flatten()
+        self.train_episode_rewards += reward_env
+        
+        for t in range(self.algo_args["train"]["n_rollout_threads"]):
+            if dones_env[t]:
+                self.done_episodes_rewards.append(self.train_episode_rewards[t])
+                self.train_episode_rewards[t] = 0
+                
+                self.done_env_agent_rewards.append(self.env_agent_rewards[t, :, :].copy())
+                self.env_agent_rewards[t, :, :] = np.zeros((self.num_agents, self.num_objectives))
+
+        
     def episode_log(
         self, actor_train_infos, critic_train_info, actor_buffer, critic_buffer
     ):
@@ -66,21 +111,35 @@ class HarlJusticeLogger(BaseLogger):
 
         if len(self.done_episodes_rewards) > 0:
             aver_episode_rewards = np.mean(self.done_episodes_rewards)
+            # env_agent_rewards shape: (num_episodes, num_agents, num_objectives)
+            env_agent_rewards = np.array(self.done_env_agent_rewards)
+            # Mean across episodes and agents -> (num_objectives,)
+            mean_vec_return = env_agent_rewards.mean(axis=(0, 1))
+            
             print(
-                "Some episodes done, average episode reward is {}.\n".format(
+                "Some episodes done, average episode reward is {}.".format(
                     aver_episode_rewards
                 )
             )
-            # self.writter.add_scalars(
-            #     "train_episode_rewards",
-            #     {"aver_rewards": aver_episode_rewards},
-            #     self.total_num_steps,
-            # )
-            wandb.log({
-                "aver_episode_rewards": aver_episode_rewards
-            })
+            # Can be changed to print per agent rewards if needed
+            print(
+                "Average vector return (non-normalized): {} \n".format(
+                    mean_vec_return
+                )
+            )
+            
+            # Log scalar metrics for wandb
+            log_dict = {
+                "aver_episode_rewards": aver_episode_rewards,
+            }
+            # Log each objective separately for hypervolume computation
+            for obj_idx in range(self.num_objectives):
+                log_dict[f"{obj_idx}"] = mean_vec_return[obj_idx]
+            
+            wandb.log(log_dict)
                 
             self.done_episodes_rewards = []
+            self.done_env_agent_rewards = []
     
     def log_train(self, actor_train_infos, critic_train_info):
         """Log training information."""
@@ -88,14 +147,14 @@ class HarlJusticeLogger(BaseLogger):
         for agent_id in range(self.num_agents):
             for k, v in actor_train_infos[agent_id].items():
                 agent_k = "agent%i/" % agent_id + k
-                # self.writter.add_scalars(agent_k, {agent_k: v}, self.total_num_steps)
+                
                 wandb.log({
                     f"agent{agent_id}/{k}": v
                 })
         # log critic
         for k, v in critic_train_info.items():
             critic_k = "critic/" + k
-            # self.writter.add_scalars(critic_k, {critic_k: v}, self.total_num_steps)
+            
             wandb.log({
                 critic_k: v
             })
@@ -112,10 +171,7 @@ class HarlJusticeLogger(BaseLogger):
         self.log_env(eval_env_infos)
         eval_avg_rew = np.mean(self.eval_episode_rewards)
         print("Evaluation average episode reward is {}.\n".format(eval_avg_rew))
-        # self.log_file.write(
-        #     ",".join(map(str, [self.total_num_steps, eval_avg_rew])) + "\n"
-        # )
-        # self.log_file.flush()
+       
         wandb.log({
             "eval/eval_average_episode_rewards": eval_avg_rew
         })

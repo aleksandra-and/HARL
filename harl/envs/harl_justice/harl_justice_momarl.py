@@ -25,13 +25,6 @@ class HarlJusticeMOMARLEnvironment:
     
     Applies MOMAland wrappers to linearize multi-objective rewards into scalar
     rewards that HARL runners can process.
-    
-    Args:
-        args: Dictionary containing environment configuration including:
-            - weights: List of floats for reward linearization
-            - rewards: List of objective names
-            - num_agents, ensables, state_type, num_actions, action_change
-            - normalize_rewards: Whether to normalize rewards (default: True)
     """
     
     def __init__(self, args):
@@ -84,7 +77,12 @@ class HarlJusticeMOMARLEnvironment:
     
     def step(self, actions):
         """Execute one step in the environment."""
-        obs, rewards, term, trunc, infos = self.env.step(self.wrap(actions.flatten()))
+        # actions shape depends on fixed_savings_rate:
+        # - True: (n_agents,) single emission control action per agent
+        # - False: (n_agents, 2) [emission_control, savings_rate] per agent
+        action_dict = {agent: actions[i] for i, agent in enumerate(self.agents)}
+        
+        obs, rewards, term, trunc, infos = self.env.step(action_dict)
         dones = {agent: term[agent] or trunc[agent] for agent in self.agents}
         state = self.base_env.get_state()
         
