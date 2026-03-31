@@ -39,8 +39,8 @@ class HarlJusticeLogger(BaseLogger):
         for t in range(self.algo_args["train"]["n_rollout_threads"]):
             if infos[t] is not None:
                 for agent_idx, info in enumerate(infos[t]):
-                    if isinstance(info, dict) and 'rewards' in info:
-                        vec_reward = info['rewards']
+                    if isinstance(info, dict):
+                        vec_reward = info.get('rewards', None)
                         if isinstance(vec_reward, np.ndarray) and len(vec_reward) == self.num_objectives:
                             self.env_agent_rewards[t, agent_idx, :] += vec_reward
                     
@@ -123,7 +123,7 @@ class HarlJusticeLogger(BaseLogger):
             )
             # Can be changed to print per agent rewards if needed
             print(
-                "Average vector return (non-normalized): {} \n".format(
+                "Average vector return: {} \n".format(
                     mean_vec_return
                 )
             )
