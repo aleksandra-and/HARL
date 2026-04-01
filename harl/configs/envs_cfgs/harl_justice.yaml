@@ -8,3 +8,4 @@ action_change: 1
 state_type: 'EP'
 num_actions: 11
 fixed_savings_rate: False
+welfare_type: 'utilitarian'
