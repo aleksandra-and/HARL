@@ -13,6 +13,7 @@ class HarlJusticeLogger(BaseLogger):
         )
         # shape: (n_rollout_threads, num_agents, num_objectives)
         self.num_objectives = 2 if env_args.get('reward', 'other') == 'multi_objective' else 1
+        self.objective_names = env_args.get('rewards', ['objective_0', 'objective_1'])[:self.num_objectives]
         self.env_agent_rewards = np.zeros((
             self.algo_args["train"]["n_rollout_threads"], self.num_agents, self.num_objectives
             ))
@@ -159,22 +160,82 @@ class HarlJusticeLogger(BaseLogger):
                 critic_k: v
             })
     
+    def eval_init(self):
+        """Initialize evaluation tracking including per-objective vector rewards."""
+        super().eval_init()
+        n_eval_threads = self.algo_args["eval"]["n_eval_rollout_threads"]
+        # Per-thread, per-step vector rewards: list of lists
+        self.eval_one_episode_vec_rewards = [[] for _ in range(n_eval_threads)]
+        # Completed episode vector returns per thread
+        self.eval_episode_vec_returns = [[] for _ in range(n_eval_threads)]
+
+    def eval_per_step(self, eval_data):
+        """Track per-step vector rewards from eval infos."""
+        super().eval_per_step(eval_data)
+        (
+            eval_obs,
+            eval_share_obs,
+            eval_rewards,
+            eval_dones,
+            eval_infos,
+            eval_available_actions,
+        ) = eval_data
+        for eval_i in range(self.algo_args["eval"]["n_eval_rollout_threads"]):
+            if eval_infos[eval_i] is not None:
+                # Average vector reward across agents for this thread/step
+                step_vec = np.zeros(self.num_objectives)
+                count = 0
+                for info in eval_infos[eval_i]:
+                    if isinstance(info, dict):
+                        vec_reward = info.get('rewards', None)
+                        if isinstance(vec_reward, np.ndarray) and len(vec_reward) == self.num_objectives:
+                            step_vec += vec_reward
+                            count += 1
+                if count > 0:
+                    step_vec /= count
+                self.eval_one_episode_vec_rewards[eval_i].append(step_vec)
+
+    def eval_thread_done(self, tid):
+        """Accumulate vector returns when an eval episode finishes."""
+        super().eval_thread_done(tid)
+        if self.eval_one_episode_vec_rewards[tid]:
+            episode_vec_return = np.sum(self.eval_one_episode_vec_rewards[tid], axis=0)
+            self.eval_episode_vec_returns[tid].append(episode_vec_return)
+        self.eval_one_episode_vec_rewards[tid] = []
+
     def eval_log(self, eval_episode):
-        """Log evaluation information."""
+        """Log evaluation information including per-objective unnormalized rewards."""
         self.eval_episode_rewards = np.concatenate(
             [rewards for rewards in self.eval_episode_rewards if rewards]
         )
-        eval_env_infos = {
-            "eval/eval_average_episode_rewards": self.eval_episode_rewards,
-            "eval/eval_max_episode_rewards": [np.max(self.eval_episode_rewards)],
-        }
-        self.log_env(eval_env_infos)
+        
         eval_avg_rew = np.mean(self.eval_episode_rewards)
         print("Evaluation average episode reward is {}.\n".format(eval_avg_rew))
-       
-        wandb.log({
-            "eval/eval_average_episode_rewards": eval_avg_rew
-        })
+
+        log_dict = {
+            "eval/eval_average_episode_rewards": eval_avg_rew,
+        }
+
+        # Log per-objective unnormalized rewards
+        all_vec_returns = [vr for thread_vrs in self.eval_episode_vec_returns for vr in thread_vrs]
+        if len(all_vec_returns) > 0:
+            vec_returns = np.array(all_vec_returns)  # (num_episodes, num_objectives)
+            mean_vec = vec_returns.mean(axis=0)
+            max_vec = vec_returns.max(axis=0)
+
+            for obj_idx, obj_name in enumerate(self.objective_names):
+                log_dict[f"eval/{obj_idx}_mean"] = mean_vec[obj_idx]
+            
+            # Log per-episode vector returns as a wandb.Table for reliable retrieval
+            columns = [f"obj_{i}" for i in range(self.num_objectives)]
+            vec_table = wandb.Table(columns=columns, data=vec_returns.tolist())
+            log_dict["eval/objective_vector"] = vec_table
+
+            print("Eval per-objective mean returns: {}\n".format(
+                {name: mean_vec[i] for i, name in enumerate(self.objective_names)}
+            ))
+
+        wandb.log(log_dict)
         
     def log_env(self, env_infos):
         """Log environment information."""
