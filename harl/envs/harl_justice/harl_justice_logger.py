@@ -214,6 +214,7 @@ class HarlJusticeLogger(BaseLogger):
 
         log_dict = {
             "eval/eval_average_episode_rewards": eval_avg_rew,
+            "eval/total_num_steps": self.total_num_steps,
         }
 
         # Log per-objective unnormalized rewards

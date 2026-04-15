@@ -216,6 +216,16 @@ class OffPolicyBaseRunner:
             self.algo_args["train"]["n_rollout_threads"]
         )
         self.done_episodes_rewards = []
+
+        # Multi-objective tracking
+        self.num_objectives = len(self.env_args.get('rewards', []))
+        self.objective_names = self.env_args.get('rewards', [])
+        if self.num_objectives > 0:
+            self.train_episode_vec_rewards = np.zeros(
+                (self.algo_args["train"]["n_rollout_threads"], self.num_agents, self.num_objectives)
+            )
+            self.done_episode_vec_rewards = []
+
         # warmup
         print("start warmup")
         obs, share_obs, available_actions = self.warmup()
@@ -302,9 +312,21 @@ class OffPolicyBaseRunner:
                             ",".join(map(str, [cur_step, aver_episode_rewards])) + "\n"
                         )
                         self.log_file.flush()
-                        wandb.log("train/average_episode_rewards", aver_episode_rewards)
+                        wandb.log({"train/average_episode_rewards": aver_episode_rewards, "train/total_num_steps": cur_step})
+                        if self.num_objectives > 0 and len(self.done_episode_vec_rewards) > 0:
+                            vec_rewards = np.array(self.done_episode_vec_rewards)  # (episodes, agents, objectives)
+                            mean_vec = vec_rewards.mean(axis=(0, 1))
+                            log_dict = {}
+                            for obj_idx, obj_name in enumerate(self.objective_names):
+                                log_dict[f"train/{obj_name}"] = mean_vec[obj_idx]
+                            wandb.log(log_dict)
+                            print(f"Train per-objective mean returns: {dict(zip(self.objective_names, mean_vec))}")
+                            self.done_episode_vec_rewards = []
                         self.done_episodes_rewards = []
                 self.save()
+
+        # Ensure final model is saved after training completes
+        self.save()
 
     def warmup(self):
         """Warmup the replay buffer with random actions"""
@@ -400,10 +422,23 @@ class OffPolicyBaseRunner:
                         ):
                             terms[i][agent_id][0] = True
 
+        # Track per-step vector rewards from infos
+        if self.num_objectives > 0:
+            for i in range(self.algo_args["train"]["n_rollout_threads"]):
+                if infos[i] is not None:
+                    for agent_idx, info in enumerate(infos[i]):
+                        if isinstance(info, dict):
+                            vec_reward = info.get('rewards', None)
+                            if isinstance(vec_reward, np.ndarray) and len(vec_reward) == self.num_objectives:
+                                self.train_episode_vec_rewards[i, agent_idx, :] += vec_reward
+
         for i in range(self.algo_args["train"]["n_rollout_threads"]):
             if dones_env[i]:
                 self.done_episodes_rewards.append(self.train_episode_rewards[i])
                 self.train_episode_rewards[i] = 0
+                if self.num_objectives > 0:
+                    self.done_episode_vec_rewards.append(self.train_episode_vec_rewards[i].copy())
+                    self.train_episode_vec_rewards[i] = 0
                 self.agent_deaths = np.zeros(
                     (self.algo_args["train"]["n_rollout_threads"], self.num_agents, 1)
                 )
@@ -524,6 +559,10 @@ class OffPolicyBaseRunner:
             one_episode_rewards.append([])
             eval_episode_rewards.append([])
         eval_episode = 0
+
+        # Per-objective eval tracking
+        eval_one_episode_vec_rewards = [[] for _ in range(self.algo_args["eval"]["n_eval_rollout_threads"])]
+        eval_episode_vec_returns = []
         if "smac" in self.args["env"]:
             eval_battles_won = 0
         if "football" in self.args["env"]:
@@ -550,6 +589,22 @@ class OffPolicyBaseRunner:
             for eval_i in range(self.algo_args["eval"]["n_eval_rollout_threads"]):
                 one_episode_rewards[eval_i].append(eval_rewards[eval_i])
 
+            # Track per-objective vector rewards from eval infos
+            if self.num_objectives > 0:
+                for eval_i in range(self.algo_args["eval"]["n_eval_rollout_threads"]):
+                    if eval_infos[eval_i] is not None:
+                        step_vec = np.zeros(self.num_objectives)
+                        count = 0
+                        for info in eval_infos[eval_i]:
+                            if isinstance(info, dict):
+                                vec_reward = info.get('rewards', None)
+                                if isinstance(vec_reward, np.ndarray) and len(vec_reward) == self.num_objectives:
+                                    step_vec += vec_reward
+                                    count += 1
+                        if count > 0:
+                            step_vec /= count
+                        eval_one_episode_vec_rewards[eval_i].append(step_vec)
+
             one_episode_len += 1
 
             eval_dones_env = np.all(eval_dones, axis=1)
@@ -573,6 +628,10 @@ class OffPolicyBaseRunner:
                     one_episode_rewards[eval_i] = []
                     episode_lens.append(one_episode_len[eval_i].copy())
                     one_episode_len[eval_i] = 0
+                    # Accumulate vector returns for this episode
+                    if self.num_objectives > 0 and eval_one_episode_vec_rewards[eval_i]:
+                        eval_episode_vec_returns.append(np.sum(eval_one_episode_vec_rewards[eval_i], axis=0))
+                        eval_one_episode_vec_rewards[eval_i] = []
 
             if eval_episode >= self.algo_args["eval"]["eval_episodes"]:
                 # eval_log returns whether the current model should be saved
@@ -627,6 +686,10 @@ class OffPolicyBaseRunner:
                         )
                         + "\n"
                     )
+                elif "harl_justice_momarl" in self.args["env"]:
+                    self.log_file.write(
+                        ",".join(map(str, [step, eval_avg_rew, eval_avg_len])) + "\n"
+                    )
                 else:
                     self.log_file.write(
                         ",".join(map(str, [step, eval_avg_rew, eval_avg_len])) + "\n"
@@ -635,11 +698,24 @@ class OffPolicyBaseRunner:
                 self.writter.add_scalar(
                     "eval_average_episode_rewards", eval_avg_rew, step
                 )
-                wandb.log("eval/average_episode_rewards", eval_avg_rew)
-                wandb.log("eval/average_episode_length", eval_avg_len)
+                wandb.log({"eval/average_episode_rewards": eval_avg_rew, "eval/total_num_steps": step*eval_avg_len})
+                wandb.log({"eval/average_episode_length": eval_avg_len})
                 self.writter.add_scalar(
                     "eval_average_episode_length", eval_avg_len, step
                 )
+
+                # Log per-objective eval metrics
+                if self.num_objectives > 0 and len(eval_episode_vec_returns) > 0:
+                    vec_returns = np.array(eval_episode_vec_returns)  # (num_episodes, num_objectives)
+                    mean_vec = vec_returns.mean(axis=0)
+                    eval_obj_log = {}
+                    for obj_idx, obj_name in enumerate(self.objective_names):
+                        eval_obj_log[f"eval/{obj_idx}_mean"] = mean_vec[obj_idx]
+                    columns = [f"obj_{i}" for i in range(self.num_objectives)]
+                    eval_obj_log["eval/objective_vector"] = wandb.Table(columns=columns, data=vec_returns.tolist())
+                    wandb.log(eval_obj_log)
+                    print(f"Eval per-objective mean returns: {dict(zip(self.objective_names, mean_vec))}\n")
+
                 break
 
     @torch.no_grad()

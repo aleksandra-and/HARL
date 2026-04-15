@@ -29,6 +29,7 @@ class HarlJusticeMOMARLEnvironment:
     
     def __init__(self, args):
         self.args = copy.deepcopy(args)
+        self.discrete_actions = args.get('discrete_actions', True)
         
         # Extract weights for linearization
         self.weights = np.array(args.get('weights', [0.5, 0.5]), dtype=np.float32)
@@ -106,6 +107,10 @@ class HarlJusticeMOMARLEnvironment:
 
     def get_avail_actions(self):
         """Get available actions for all agents."""
+        # No action mask for continuous actions
+        if not self.discrete_actions:
+            return None
+        
         avail_actions = []
         for agent_id in range(self.n_agents):
             avail_agent = self.get_avail_agent_actions(agent_id)

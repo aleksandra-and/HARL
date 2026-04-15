@@ -266,6 +266,9 @@ class OnPolicyBaseRunner:
 
             self.after_update()
 
+        # Ensure final model is saved after training completes
+        self.save()
+
     def warmup(self):
         """Warm up the replay buffer."""
         # reset env

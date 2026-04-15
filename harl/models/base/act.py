@@ -28,8 +28,15 @@ class ACTLayer(nn.Module):
             )
         elif action_space.__class__.__name__ == "Box":
             action_dim = action_space.shape[0]
+            act_scale = torch.tensor(
+                (action_space.high - action_space.low) / 2, dtype=torch.float32
+            )
+            act_mean = torch.tensor(
+                (action_space.high + action_space.low) / 2, dtype=torch.float32
+            )
             self.action_out = DiagGaussian(
-                inputs_dim, action_dim, initialization_method, gain, args
+                inputs_dim, action_dim, initialization_method, gain, args,
+                act_scale=act_scale, act_mean=act_mean,
             )
         elif action_space.__class__.__name__ == "MultiDiscrete":
             self.multidiscrete_action = True
