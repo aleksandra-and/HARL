@@ -312,16 +312,17 @@ class OffPolicyBaseRunner:
                             ",".join(map(str, [cur_step, aver_episode_rewards])) + "\n"
                         )
                         self.log_file.flush()
-                        wandb.log({"train/average_episode_rewards": aver_episode_rewards, "train/total_num_steps": cur_step})
+                        log_dict = {"train/average_episode_rewards": aver_episode_rewards, "train/total_num_steps": cur_step}
                         if self.num_objectives > 0 and len(self.done_episode_vec_rewards) > 0:
                             vec_rewards = np.array(self.done_episode_vec_rewards)  # (episodes, agents, objectives)
                             mean_vec = vec_rewards.mean(axis=(0, 1))
-                            log_dict = {}
                             for obj_idx, obj_name in enumerate(self.objective_names):
                                 log_dict[f"train/{obj_name}"] = mean_vec[obj_idx]
-                            wandb.log(log_dict)
+                            
                             print(f"Train per-objective mean returns: {dict(zip(self.objective_names, mean_vec))}")
                             self.done_episode_vec_rewards = []
+                        
+                        wandb.log(log_dict, step=cur_step)
                         self.done_episodes_rewards = []
                 self.save()
 
@@ -698,8 +699,8 @@ class OffPolicyBaseRunner:
                 self.writter.add_scalar(
                     "eval_average_episode_rewards", eval_avg_rew, step
                 )
-                wandb.log({"eval/average_episode_rewards": eval_avg_rew, "eval/total_num_steps": step*eval_avg_len})
-                wandb.log({"eval/average_episode_length": eval_avg_len})
+                log_dict = {"eval/average_episode_rewards": eval_avg_rew, "eval/total_num_steps": step}
+                
                 self.writter.add_scalar(
                     "eval_average_episode_length", eval_avg_len, step
                 )
@@ -708,14 +709,14 @@ class OffPolicyBaseRunner:
                 if self.num_objectives > 0 and len(eval_episode_vec_returns) > 0:
                     vec_returns = np.array(eval_episode_vec_returns)  # (num_episodes, num_objectives)
                     mean_vec = vec_returns.mean(axis=0)
-                    eval_obj_log = {}
+                    
                     for obj_idx, obj_name in enumerate(self.objective_names):
-                        eval_obj_log[f"eval/{obj_idx}_mean"] = mean_vec[obj_idx]
+                        log_dict[f"eval/{obj_idx}_mean"] = mean_vec[obj_idx]
                     columns = [f"obj_{i}" for i in range(self.num_objectives)]
-                    eval_obj_log["eval/objective_vector"] = wandb.Table(columns=columns, data=vec_returns.tolist())
-                    wandb.log(eval_obj_log)
+                    log_dict["eval/objective_vector"] = wandb.Table(columns=columns, data=vec_returns.tolist())
                     print(f"Eval per-objective mean returns: {dict(zip(self.objective_names, mean_vec))}\n")
-
+                    
+                wandb.log(log_dict, step=step)
                 break
 
     @torch.no_grad()

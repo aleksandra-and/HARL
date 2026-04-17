@@ -101,14 +101,14 @@ class HarlJusticeLogger(BaseLogger):
         wandb.log({
             "average_step_rewards": critic_buffer.get_mean_rewards(),
             "total_num_steps": self.total_num_steps,
-        })
+        }, step=self.total_num_steps)
         
         if critic_buffer.rewards.ndim == 4:
             # if critic buffer has shape (n_rollout_threads, episode_length, num_agents, 1)
             for agent_id in range(self.num_agents):
                 wandb.log({
                     f"reward_agent{agent_id}": critic_buffer.rewards[:, :, agent_id].sum(axis=0).mean()
-                })
+                }, step=self.total_num_steps)
 
         if len(self.done_episodes_rewards) > 0:
             aver_episode_rewards = np.mean(self.done_episodes_rewards)
@@ -151,14 +151,14 @@ class HarlJusticeLogger(BaseLogger):
                 
                 wandb.log({
                     f"agent{agent_id}/{k}": v
-                })
+                }, step=self.total_num_steps)
         # log critic
         for k, v in critic_train_info.items():
             critic_k = "critic/" + k
             
             wandb.log({
                 critic_k: v
-            })
+            }, step=self.total_num_steps)
     
     def eval_init(self):
         """Initialize evaluation tracking including per-objective vector rewards."""
@@ -236,7 +236,7 @@ class HarlJusticeLogger(BaseLogger):
                 {name: mean_vec[i] for i, name in enumerate(self.objective_names)}
             ))
 
-        wandb.log(log_dict)
+        wandb.log(log_dict, step=self.total_num_steps)
         
     def log_env(self, env_infos):
         """Log environment information."""
