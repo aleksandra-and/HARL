@@ -12,8 +12,12 @@ class HarlJusticeLogger(BaseLogger):
             args, algo_args, env_args, num_agents, writter, run_dir
         )
         # shape: (n_rollout_threads, num_agents, num_objectives)
-        self.num_objectives = 2 if env_args.get('reward', 'other') == 'multi_objective' else 1
-        self.objective_names = env_args.get('rewards', ['objective_0', 'objective_1'])[:self.num_objectives]
+        if env_args.get('reward', 'other') == 'multi_objective':
+            self.objective_names = list(env_args.get('rewards', ['objective_0', 'objective_1']))
+            self.num_objectives = len(self.objective_names)
+        else:
+            self.num_objectives = 1
+            self.objective_names = list(env_args.get('rewards', ['objective_0']))[:1]
         self.env_agent_rewards = np.zeros((
             self.algo_args["train"]["n_rollout_threads"], self.num_agents, self.num_objectives
             ))
@@ -168,6 +172,9 @@ class HarlJusticeLogger(BaseLogger):
         self.eval_one_episode_vec_rewards = [[] for _ in range(n_eval_threads)]
         # Completed episode vector returns per thread
         self.eval_episode_vec_returns = [[] for _ in range(n_eval_threads)]
+        # Paper metrics reported by the env at episode end (per thread, then per episode)
+        self.eval_step_episode_metrics = [None for _ in range(n_eval_threads)]
+        self.eval_episode_metrics = []
 
     def eval_per_step(self, eval_data):
         """Track per-step vector rewards from eval infos."""
@@ -187,6 +194,8 @@ class HarlJusticeLogger(BaseLogger):
                 count = 0
                 for info in eval_infos[eval_i]:
                     if isinstance(info, dict):
+                        if 'episode_metrics' in info:
+                            self.eval_step_episode_metrics[eval_i] = info['episode_metrics']
                         vec_reward = info.get('rewards', None)
                         if isinstance(vec_reward, np.ndarray) and len(vec_reward) == self.num_objectives:
                             step_vec += vec_reward
@@ -202,6 +211,9 @@ class HarlJusticeLogger(BaseLogger):
             episode_vec_return = np.sum(self.eval_one_episode_vec_rewards[tid], axis=0)
             self.eval_episode_vec_returns[tid].append(episode_vec_return)
         self.eval_one_episode_vec_rewards[tid] = []
+        if self.eval_step_episode_metrics[tid] is not None:
+            self.eval_episode_metrics.append(self.eval_step_episode_metrics[tid])
+            self.eval_step_episode_metrics[tid] = None
 
     def eval_log(self, eval_episode):
         """Log evaluation information including per-objective unnormalized rewards."""
@@ -235,6 +247,17 @@ class HarlJusticeLogger(BaseLogger):
             print("Eval per-objective mean returns: {}\n".format(
                 {name: mean_vec[i] for i, name in enumerate(self.objective_names)}
             ))
+
+        if len(self.eval_episode_metrics) > 0:
+            self.last_eval_metrics = {
+                k: float(np.mean([m[k] for m in self.eval_episode_metrics]))
+                for k in self.eval_episode_metrics[0]
+            }
+            self.last_eval_metrics['eval_step'] = int(self.total_num_steps)
+            if len(all_vec_returns) > 0:
+                self.last_eval_metrics['vec_return'] = mean_vec.tolist()
+            for k in self.eval_episode_metrics[0]:
+                log_dict[f"eval/{k}"] = self.last_eval_metrics[k]
 
         wandb.log(log_dict, step=self.total_num_steps)
         

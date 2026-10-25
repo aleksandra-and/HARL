@@ -564,6 +564,8 @@ class OffPolicyBaseRunner:
         # Per-objective eval tracking
         eval_one_episode_vec_rewards = [[] for _ in range(self.algo_args["eval"]["n_eval_rollout_threads"])]
         eval_episode_vec_returns = []
+        eval_episode_metrics = []  # paper metrics reported by the env at episode end
+        eval_step_metrics = [None] * self.algo_args["eval"]["n_eval_rollout_threads"]
         if "smac" in self.args["env"]:
             eval_battles_won = 0
         if "football" in self.args["env"]:
@@ -598,6 +600,8 @@ class OffPolicyBaseRunner:
                         count = 0
                         for info in eval_infos[eval_i]:
                             if isinstance(info, dict):
+                                if 'episode_metrics' in info:
+                                    eval_step_metrics[eval_i] = info['episode_metrics']
                                 vec_reward = info.get('rewards', None)
                                 if isinstance(vec_reward, np.ndarray) and len(vec_reward) == self.num_objectives:
                                     step_vec += vec_reward
@@ -629,6 +633,9 @@ class OffPolicyBaseRunner:
                     one_episode_rewards[eval_i] = []
                     episode_lens.append(one_episode_len[eval_i].copy())
                     one_episode_len[eval_i] = 0
+                    if eval_step_metrics[eval_i] is not None:
+                        eval_episode_metrics.append(eval_step_metrics[eval_i])
+                        eval_step_metrics[eval_i] = None
                     # Accumulate vector returns for this episode
                     if self.num_objectives > 0 and eval_one_episode_vec_rewards[eval_i]:
                         eval_episode_vec_returns.append(np.sum(eval_one_episode_vec_rewards[eval_i], axis=0))
@@ -715,6 +722,17 @@ class OffPolicyBaseRunner:
                     columns = [f"obj_{i}" for i in range(self.num_objectives)]
                     log_dict["eval/objective_vector"] = wandb.Table(columns=columns, data=vec_returns.tolist())
                     print(f"Eval per-objective mean returns: {dict(zip(self.objective_names, mean_vec))}\n")
+
+                if len(eval_episode_metrics) > 0:
+                    self.last_eval_metrics = {
+                        k: float(np.mean([m[k] for m in eval_episode_metrics]))
+                        for k in eval_episode_metrics[0]
+                    }
+                    self.last_eval_metrics['eval_step'] = int(step)
+                    if self.num_objectives > 0 and len(eval_episode_vec_returns) > 0:
+                        self.last_eval_metrics['vec_return'] = mean_vec.tolist()
+                    for k in eval_episode_metrics[0]:
+                        log_dict[f"eval/{k}"] = self.last_eval_metrics[k]
                     
                 wandb.log(log_dict, step=step)
                 break
